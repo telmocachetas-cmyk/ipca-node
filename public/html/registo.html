@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registo - IPCA</title>
+    <link rel="stylesheet" href="/css/estilo.css">
+    <style>
+        .container { max-width: 500px; margin: 50px auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 Criar Conta</h1>
+            <p>Registe-se no sistema IPCA</p>
+        </div>
+        
+        <div class="content">
+            <div class="card">
+                <div id="erroMsg" class="alert alert-error" style="display: none;"></div>
+                <div id="sucessoMsg" class="alert alert-success" style="display: none;"></div>
+                
+                <form method="POST" action="/registo" id="registoForm">
+                    <div class="form-group">
+                        <label for="login">👤 Nome de Utilizador</label>
+                        <input type="text" id="login" name="login" required placeholder="Escolha um login">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pwd">🔒 Password</label>
+                        <input type="password" id="pwd" name="pwd" required placeholder="Mínimo 4 caracteres">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirm_pwd">🔒 Confirmar Password</label>
+                        <input type="password" id="confirm_pwd" name="confirm_pwd" required placeholder="Digite novamente a password">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-block">Criar Conta</button>
+                </form>
+                
+                <p style="text-align: center; margin-top: 20px;">
+                    Já tem conta? <a href="/login">Faça login</a>
+                </p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2026 IPCA - Sistema Académico</p>
+        </div>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const erro = urlParams.get('erro');
+        const sucesso = urlParams.get('sucesso');
+        
+        if (erro) {
+            const erroDiv = document.getElementById('erroMsg');
+            erroDiv.textContent = decodeURIComponent(erro);
+            erroDiv.style.display = 'block';
+        }
+        
+        if (sucesso) {
+            const sucessoDiv = document.getElementById('sucessoMsg');
+            sucessoDiv.textContent = decodeURIComponent(sucesso);
+            sucessoDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

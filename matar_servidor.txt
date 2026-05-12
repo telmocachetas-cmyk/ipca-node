@@ -1,0 +1,8 @@
+npx kill-port 3002
+node app.js
+
+
+OU
+
+Ctrl + C
+node app.js

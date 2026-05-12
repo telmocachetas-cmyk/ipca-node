@@ -1,0 +1,20 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente (contém passwords!)
+.env
+
+# Uploads de fotos
+public/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Configurações do VS Code
+.vscode/
+*.code-workspace
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

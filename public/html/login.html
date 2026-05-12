@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - IPCA</title>
+    <link rel="stylesheet" href="/css/estilo.css">
+    <style>
+        .login-container { max-width: 500px; margin: 50px auto; }
+        .btn-block { width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="container login-container">
+        <div class="header">
+            <h1>🎓 IPCA</h1>
+            <p>Sistema de Gestão Académica</p>
+        </div>
+        
+        <div class="content">
+            <div class="card">
+                <h2 style="text-align: center;">🔐 Login</h2>
+                
+                <div id="erroMsg" class="alert alert-error" style="display: none;"></div>
+                
+                <form method="POST" action="/login" id="loginForm">
+                    <div class="form-group">
+                        <label for="login">👤 Utilizador</label>
+                        <input type="text" id="login" name="login" required placeholder="Digite seu login">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pwd">🔒 Password</label>
+                        <input type="password" id="pwd" name="pwd" required placeholder="Digite sua password">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-block">Entrar</button>
+                </form>
+                
+                <p style="text-align: center; margin-top: 20px;">
+                    Não tem conta? <a href="/registo">Registe-se como aluno</a>
+                </p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2026 IPCA</p>
+        </div>
+    </div>
+    
+    <script>
+        // Mostrar erro se veio na URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const erro = urlParams.get('erro');
+        if (erro) {
+            const erroDiv = document.getElementById('erroMsg');
+            erroDiv.textContent = decodeURIComponent(erro);
+            erroDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
