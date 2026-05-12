@@ -1,28 +1,40 @@
-# IPCA - Sistema de Gestão Académica
+---
 
-## Como executar
+## 🚀 Como executar o projeto
 
-1. `npm install`
-2. Criar `.env` com `MONGODB_URI=...`
-3. `node init-db.js`
-4. `node app.js`
+### Pré-requisitos
 
-## Credenciais
-- Admin: admin/admin123
-- Funcionário: func1/func123
-- Aluno: aluno1/aluno123
+- Node.js instalado (versão 18 ou superior)
+- Conta no MongoDB Atlas (gratuita)
+- Git (para clonar o repositório)
 
-## Rotas principais
-- `/admin/dashboard`
-- `/aluno/dashboard`
-- `/funcionario/dashboard`
+### Passo 1: Clonar o repositório
 
-## Como desligar
+```bash
+git clone https://github.com/SEU_USUARIO/ipca-node.git
+cd ipca-node
 
-npx kill-port 3002
+### Passo 2: Instalar dependências
+
+npm install
+
+### Passo 3: Configurar variáveis de ambiente
+
+Criar ficheiro .env na raiz do projeto:
+# MongoDB Atlas Connection String
+MONGODB_URI=mongodb+srv://SEU_USUARIO:SUA_PASSWORD@cluster.mongodb.net/
+
+# Nome da base de dados
+DB_NAME=ipca
+
+# Chave secreta para as sessões
+SESSION_SECRET=um_segredo_muito_seguro_123456
+
+# Porta do servidor
+PORT=3002
+
+### Passo 4: Iniciar o servidor
+
 node app.js
 
-OU
-
-Ctrl + C
-node app.js
+O servidor estará disponível em: http://localhost:3002
