@@ -1,8 +1,14 @@
-const dns = require('node:dns');
-dns.setDefaultResultOrder('ipv4first');
-dns.setServers(['1.1.1.1', '8.8.8.8']);
+const dns = require('dns');
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
+
+if (dns.getServers().length === 1 && dns.getServers()[0] === '127.0.0.1') {
+    const dnsServer = process.env.MONGODB_DNS_SERVER;
+    if (dnsServer) {
+        dns.setServers([dnsServer]);
+        console.log('🔧 Usando DNS personalizado para Node:', dnsServer);
+    }
+}
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
