@@ -19,3 +19,10 @@ PORT=3002
 - ADMIN: admin / 1234
 - FUNCIONARIO: func1 / 1234
 - ALUNO: criar via registo
+
+
+## Matar servidor:
+
+taskkill /F /IM node.exe
+cd ipca-node
+node app.js

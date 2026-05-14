@@ -108,7 +108,7 @@ router.post('/funcionario/criar-pauta', isAuthenticated, isFuncionario, async (r
             { $match: { estado: 'aprovado' } },
             { $lookup: { from: 'cursos', localField: 'curso_id', foreignField: '_id', as: 'curso' } },
             { $unwind: '$curso' },
-            { $match: { 'curso.disciplinas.disciplina_id': new ObjectId(uc_id) } }
+            { $match: { 'curso.disciplinas': { $elemMatch: { disciplina_id: new ObjectId(uc_id) } } } }
         ]).toArray();
         
         for (let aluno of alunosElegiveis) {
@@ -157,8 +157,8 @@ router.get('/funcionario/lancar-notas', isAuthenticated, isFuncionario, async (r
             .toArray();
         
         for (let nota of notas) {
-            const user = await db.collection('users').findOne({ login: nota.aluno_login });
-            nota.nome_completo = user?.nome_completo || nota.aluno_login;
+            const ficha = await db.collection('fichas_aluno').findOne({ aluno_login: nota.aluno_login });
+            nota.nome_completo = ficha?.nome_completo || 'Nome não preenchido';
         }
         
         res.send(generateLancarNotasHTML(pauta, notas, req.session.login));
@@ -201,6 +201,34 @@ router.post('/funcionario/lancar-notas', isAuthenticated, isFuncionario, async (
     }
 });
 
+// Eliminar pauta
+router.post('/funcionario/eliminar-pauta', isAuthenticated, isFuncionario, async (req, res) => {
+    try {
+        const db = getDB();
+        const { pauta_id } = req.body;
+        
+        if (!pauta_id) {
+            return res.status(400).send('ID da pauta inválido');
+        }
+        
+        // Eliminar notas associadas
+        await db.collection('notas').deleteMany({ pauta_id: new ObjectId(pauta_id) });
+        
+        // Eliminar pauta
+        const result = await db.collection('pautas').deleteOne({ _id: new ObjectId(pauta_id) });
+        
+        if (result.deletedCount === 0) {
+            return res.status(404).send('Pauta não encontrada');
+        }
+        
+        res.send(`<script>alert('Pauta eliminada com sucesso!'); window.location.href='/funcionario/pautas';</script>`);
+        
+    } catch (error) {
+        console.error(error);
+        res.send(`<script>alert('Erro ao eliminar pauta'); window.location.href='/funcionario/pautas';</script>`);
+    }
+});
+
 // Ver detalhes da pauta
 router.get('/funcionario/pauta/:id', isAuthenticated, isFuncionario, async (req, res) => {
     try {
@@ -221,8 +249,8 @@ router.get('/funcionario/pauta/:id', isAuthenticated, isFuncionario, async (req,
             .toArray();
         
         for (let nota of notas) {
-            const user = await db.collection('users').findOne({ login: nota.aluno_login });
-            nota.nome_completo = user?.nome_completo || nota.aluno_login;
+            const ficha = await db.collection('fichas_aluno').findOne({ aluno_login: nota.aluno_login });
+            nota.nome_completo = ficha?.nome_completo || 'Nome não preenchido';
         }
         
         const total_alunos = notas.length;
@@ -257,9 +285,13 @@ function generatePautasHTML(pautas, ucs, stats, filters, login) {
                         <span>${pauta.notas_lancadas}/${pauta.total_alunos}</span>
                     </div>
                 </td>
-                <td>
+                <td style="display:flex;gap:5px;flex-wrap:wrap">
                     <a href="/funcionario/lancar-notas?pauta_id=${pauta._id}" class="btn" style="background:#28a745;padding:5px 10px">✏️ Lançar</a>
                     <a href="/funcionario/pauta/${pauta._id}" class="btn" style="background:#17a2b8;padding:5px 10px">👁️ Ver</a>
+                    <form method="POST" action="/funcionario/eliminar-pauta" style="display:inline;margin:0" onsubmit="return confirm('Tem certeza que quer eliminar esta pauta?\nTodas as notas serão perdidas!')">
+                        <input type="hidden" name="pauta_id" value="${pauta._id}">
+                        <button type="submit" class="btn" style="background:#dc3545;padding:5px 10px;border:none;cursor:pointer">🗑️ Eliminar</button>
+                    </form>
                  </td>
              </tr>
         `;
@@ -284,7 +316,19 @@ function generatePautasHTML(pautas, ucs, stats, filters, login) {
     </head>
     <body>
         <div class="container">
-            <div class="header"><h1>📊 Pautas de Avaliação</h1><p>Bem-vindo, ${login}</p></div>
+            <div class="header">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div><h1>📊 Pautas de Avaliação</h1><p>Bem-vindo, ${login}</p></div>
+                    <div class="menu-perfil">
+                        <span class="profile-badge" style="background:#17a2b8">FUNCIONÁRIO</span>
+                        <div class="menu-perfil-content">
+                            <a href="/">🏠 Site Principal</a>
+                            <a href="/funcionario/perfil">👤 Meu Perfil</a>
+                            <a href="/logout">🚪 Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="nav">
                 <a href="/funcionario/dashboard">📊 Dashboard</a>
                 <a href="/funcionario/criar-pauta">📝 Criar Pauta</a>
@@ -322,133 +366,33 @@ function generateCriarPautaHTML(ucs, total_ucs, total_pautas, topUcs, login) {
         <style>
             .nav { display:flex; gap:10px; background:#f8f9fa; padding:15px 30px; }
             .nav a { color:#667eea; text-decoration:none; padding:8px 15px; border-radius:25px; }
-            .nav a:hover { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
-            
-            .stats-mini {
-                display: flex;
-                justify-content: center;
-                gap: 30px;
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e0e0e0;
-            }
-            
-            .stat-mini-card {
-                background: #f8f9fa;
-                border-radius: 15px;
-                padding: 20px 40px;
-                text-align: center;
-                min-width: 180px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            }
-            
-            .stat-mini-number {
-                font-size: 2em;
-                font-weight: bold;
-                color: #667eea;
-            }
-            
-            .stat-mini-label {
-                font-size: 0.9em;
-                color: #666;
-                margin-top: 5px;
-            }
-            
-            .form-container {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 20px;
-                align-items: end;
-            }
-            
-            @media (max-width: 768px) {
-                .form-container { grid-template-columns: 1fr; }
-                .stats-mini { flex-direction: column; align-items: center; gap: 15px; }
-                .stat-mini-card { min-width: auto; width: 100%; }
-            }
+            .stats-mini { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin-top:20px; }
+            .stat-mini-card { background:#f8f9fa; border-radius:10px; padding:15px; text-align:center; }
+            .stat-mini-number { font-size:1.8em; font-weight:bold; color:#667eea; }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header">
-                <div style="display:flex;justify-content:space-between;align-items:center">
-                    <div><h1>📝 Criar Pauta de Avaliação</h1><p>Bem-vindo, ${login}</p></div>
-                    <div class="menu-perfil">
-                        <span class="profile-badge" style="background:#17a2b8">FUNCIONÁRIO</span>
-                        <div class="menu-perfil-content">
-                            <a href="/">🏠 Site Principal</a>
-                            <a href="/funcionario/perfil">👤 Meu Perfil</a>
-                            <a href="/logout">🚪 Logout</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
+            <div class="header"><h1>📝 Criar Pauta de Avaliação</h1><p>Bem-vindo, ${login}</p></div>
             <div class="nav">
                 <a href="/funcionario/dashboard">📊 Dashboard</a>
                 <a href="/funcionario/pautas">📊 Ver Pautas</a>
                 <a href="/funcionario/pedidos">📋 Pedidos</a>
                 <a href="/funcionario/alunos">👥 Alunos</a>
             </div>
-            
             <div class="content">
                 <div class="card">
                     <h2>➕ Criar Nova Pauta</h2>
-                    <form method="POST">
-                        <div class="form-container">
-                            <div class="form-group">
-                                <label>Unidade Curricular:</label>
-                                <select name="uc_id" required style="width:100%; padding:10px;">${ucsOptions}</select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Ano Letivo:</label>
-                                <select name="ano_letivo" required style="width:100%; padding:10px;">
-                                    <option value="${new Date().getFullYear()}/${new Date().getFullYear()+1}">${new Date().getFullYear()}/${new Date().getFullYear()+1}</option>
-                                    <option value="${new Date().getFullYear()-1}/${new Date().getFullYear()}">${new Date().getFullYear()-1}/${new Date().getFullYear()}</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Época:</label>
-                                <select name="epoca" required style="width:100%; padding:10px;">
-                                    <option value="Normal">Normal</option>
-                                    <option value="Recurso">Recurso</option>
-                                    <option value="Especial">Especial</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div style="text-align: center; margin-top: 30px;">
-                            <button type="submit" class="btn" style="padding: 12px 40px;">Criar Pauta</button>
-                        </div>
+                    <form method="POST" style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px">
+                        <div class="form-group"><label>Unidade Curricular:</label><select name="uc_id" required>${ucsOptions}</select></div>
+                        <div class="form-group"><label>Ano Letivo:</label><select name="ano_letivo" required><option value="${new Date().getFullYear()}/${new Date().getFullYear()+1}">${new Date().getFullYear()}/${new Date().getFullYear()+1}</option></select></div>
+                        <div class="form-group"><label>Época:</label><select name="epoca" required><option value="Normal">Normal</option><option value="Recurso">Recurso</option><option value="Especial">Especial</option></select></div>
+                        <div style="grid-column:span 3; text-align:center"><button type="submit" class="btn">Criar Pauta</button></div>
                     </form>
-                    
-                    <!-- Cards lado a lado -->
-                    <div class="stats-mini">
-                        <div class="stat-mini-card">
-                            <div class="stat-mini-number">${total_ucs}</div>
-                            <div class="stat-mini-label">UCs Disponíveis</div>
-                        </div>
-                        <div class="stat-mini-card">
-                            <div class="stat-mini-number">${total_pautas}</div>
-                            <div class="stat-mini-label">Pautas Criadas</div>
-                        </div>
-                    </div>
+                    <div class="stats-mini"><div class="stat-mini-card"><div class="stat-mini-number">${total_ucs}</div><div>UCs Disponíveis</div></div>
+                    <div class="stat-mini-card"><div class="stat-mini-number">${total_pautas}</div><div>Pautas Criadas</div></div></div>
                 </div>
-                
-                ${topUcs.length ? `
-                <div class="card">
-                    <h2>📊 UCs com Mais Pautas</h2>
-                    <table class="table">
-                        <thead><tr><th>Unidade Curricular</th><th>Total de Pautas</th></tr></thead>
-                        <tbody>${topUcsList}</tbody>
-                    </table>
-                </div>` : ''}
-            </div>
-            
-            <div class="footer">
-                <p>&copy; 2026 IPCA - Área do Funcionário</p>
+                ${topUcs.length ? `<div class="card"><h2>📊 UCs com Mais Pautas</h2><table class="table"><thead><tr><th>UC</th><th>Total</th></tr></thead><tbody>${topUcsList}</tbody></table></div>` : ''}
             </div>
         </div>
     </body>
@@ -477,11 +421,26 @@ function generateLancarNotasHTML(pauta, notas, login) {
         <style>
             .nav { display:flex; gap:10px; background:#f8f9fa; padding:15px 30px; }
             .nav a { color:#667eea; text-decoration:none; padding:8px 15px; border-radius:25px; }
+            .nota-input { width:80px; padding:8px; border:2px solid #e0e0e0; border-radius:5px; text-align:center; }
+            .aprovado { background-color:#d4edda; }
+            .reprovado { background-color:#f8d7da; }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header"><h1>✏️ Lançar Notas</h1><p>${pauta.uc_nome} - ${pauta.epoca} ${pauta.ano_letivo}</p></div>
+            <div class="header">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div><h1>✏️ Lançar Notas</h1><p>${pauta.uc_nome} - ${pauta.epoca} ${pauta.ano_letivo}</p></div>
+                    <div class="menu-perfil">
+                        <span class="profile-badge" style="background:#17a2b8">FUNCIONÁRIO</span>
+                        <div class="menu-perfil-content">
+                            <a href="/">🏠 Site Principal</a>
+                            <a href="/funcionario/perfil">👤 Meu Perfil</a>
+                            <a href="/logout">🚪 Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="nav">
                 <a href="/funcionario/dashboard">📊 Dashboard</a>
                 <a href="/funcionario/pautas">📊 Ver Pautas</a>
@@ -503,6 +462,20 @@ function generateLancarNotasHTML(pauta, notas, login) {
                 </div>
             </div>
         </div>
+        <script>
+            document.querySelectorAll('.nota-input').forEach(input => {
+                input.addEventListener('change', function() {
+                    let nota = parseFloat(this.value);
+                    if (nota >= 9.5) {
+                        this.classList.add('aprovado');
+                        this.classList.remove('reprovado');
+                    } else if (nota !== '') {
+                        this.classList.add('reprovado');
+                        this.classList.remove('aprovado');
+                    }
+                });
+            });
+        </script>
     </body>
     </html>`;
 }
@@ -514,9 +487,9 @@ function generateDetalhesPautaHTML(pauta, notas, stats, login) {
             <tr>
                 <td>${nota.aluno_login}</td>
                 <td>${nota.nome_completo}</td>
-                <td>${nota.nota ? nota.nota.toFixed(1) : '-'}</td>
+                <td>${nota.nota ? `<span class="badge ${isAprovado ? 'badge-aluno' : ''}" style="${!isAprovado && nota.nota ? 'background:#dc3545' : ''}">${nota.nota.toFixed(1)}</span>` : '<span style="color:#999">—</span>'}</td>
                 <td>${nota.nota ? (isAprovado ? '<span class="badge badge-aluno">Aprovado</span>' : '<span class="badge" style="background:#dc3545">Reprovado</span>') : '<span class="badge badge-admin">Pendente</span>'}</td>
-                <td>${nota.data_registo ? new Date(nota.data_registo).toLocaleDateString('pt-PT') : '-'}</td>
+                <td>${nota.data_registo ? new Date(nota.data_registo).toLocaleString('pt-PT') : '-'}</td>
             </tr>
         `;
     }).join('');
@@ -531,29 +504,68 @@ function generateDetalhesPautaHTML(pauta, notas, stats, login) {
             .nav { display:flex; gap:10px; background:#f8f9fa; padding:15px 30px; }
             .nav a { color:#667eea; text-decoration:none; padding:8px 15px; border-radius:25px; }
             .stats-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:15px; margin:20px 0; }
+            .stat-card { background:#f8f9fa; border-radius:10px; padding:15px; text-align:center; }
+            .stat-value { font-size:1.8em; font-weight:bold; color:#667eea; }
+            .info-pauta { background:#f8f9fa; border-radius:10px; padding:20px; margin-bottom:20px; display:grid; grid-template-columns:repeat(4,1fr); gap:15px; }
+            .btn-lancar { background:#28a745; color:white; padding:10px 20px; border-radius:25px; text-decoration:none; display:inline-block; }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="header"><h1>📊 Detalhes da Pauta</h1><p>${pauta.uc_nome} - ${pauta.epoca} ${pauta.ano_letivo}</p></div>
+            <div class="header">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div><h1>📊 Detalhes da Pauta</h1><p>Bem-vindo, ${login}</p></div>
+                    <div class="menu-perfil">
+                        <span class="profile-badge" style="background:#17a2b8">FUNCIONÁRIO</span>
+                        <div class="menu-perfil-content">
+                            <a href="/">🏠 Site Principal</a>
+                            <a href="/funcionario/perfil">👤 Meu Perfil</a>
+                            <a href="/logout">🚪 Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="nav">
                 <a href="/funcionario/dashboard">📊 Dashboard</a>
-                <a href="/funcionario/criar-pauta">📝 Criar Pauta</a>
+                <a href="/funcionario/pautas">📊 Ver Pautas</a>
                 <a href="/funcionario/pedidos">📋 Pedidos</a>
                 <a href="/funcionario/alunos">👥 Alunos</a>
             </div>
             <div class="content">
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-value">${stats.total_alunos}</div><div>Total Alunos</div></div>
-                    <div class="stat-card"><div class="stat-value">${stats.notas_lancadas}</div><div>Notas Lançadas</div></div>
-                    <div class="stat-card"><div class="stat-value">${stats.aprovados}</div><div>Aprovados</div></div>
-                    <div class="stat-card"><div class="stat-value">${stats.reprovados}</div><div>Reprovados</div></div>
-                    <div class="stat-card"><div class="stat-value">${stats.media}</div><div>Média</div></div>
-                </div>
                 <div class="card">
+                    <h2>${pauta.uc_nome}</h2>
+                    
+                    <div class="info-pauta">
+                        <div><strong>Ano Letivo:</strong><br>${pauta.ano_letivo}</div>
+                        <div><strong>Época:</strong><br>${pauta.epoca}</div>
+                        <div><strong>Data Criação:</strong><br>${new Date(pauta.data_criacao).toLocaleDateString('pt-PT')}</div>
+                        <div><strong>Criado por:</strong><br>${pauta.funcionario_login}</div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-value">${stats.total_alunos}</div><div>Total Alunos</div></div>
+                        <div class="stat-card"><div class="stat-value">${stats.notas_lancadas}</div><div>Notas Lançadas</div></div>
+                        <div class="stat-card"><div class="stat-value">${stats.aprovados}</div><div>Aprovados</div></div>
+                        <div class="stat-card"><div class="stat-value">${stats.reprovados}</div><div>Reprovados</div></div>
+                        <div class="stat-card"><div class="stat-value">${stats.media}</div><div>Média</div></div>
+                    </div>
+                    
+                    ${stats.notas_lancadas < stats.total_alunos ? `
+                    <div style="text-align:center; margin:20px 0">
+                        <a href="/funcionario/lancar-notas?pauta_id=${pauta._id}" class="btn-lancar">✏️ Lançar Notas Pendentes</a>
+                    </div>
+                    ` : ''}
+                    
                     <h3>Notas dos Alunos</h3>
-                    <table class="table"><thead><tr><th>Aluno</th><th>Nome</th><th>Nota</th><th>Estado</th><th>Data Registo</th></tr></thead><tbody>${notasRows}</tbody></table>
-                    <div style="text-align:center;margin-top:20px"><a href="/funcionario/lancar-notas?pauta_id=${pauta._id}" class="btn" style="background:#28a745">✏️ Lançar/Editar Notas</a></div>
+                    <table class="table">
+                        <thead><tr><th>Aluno</th><th>Nome</th><th>Nota</th><th>Estado</th><th>Data Registo</th></tr></thead>
+                        <tbody>${notasRows}</tbody>
+                    </table>
+                    
+                    <div style="text-align:center; margin-top:20px">
+                        <a href="/funcionario/pautas" class="btn">← Voltar</a>
+                        <a href="/funcionario/lancar-notas?pauta_id=${pauta._id}" class="btn" style="background:#28a745">✏️ Lançar/Editar Notas</a>
+                    </div>
                 </div>
             </div>
         </div>
